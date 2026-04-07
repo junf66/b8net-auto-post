@@ -100,7 +100,7 @@ def generate_tweet(article, body, past_tweets):
 
     body_section = f"\n\n【記事本文（抜粋）】\n{body}" if body else ""
 
-    prompt = f"""以下のnote記事を宣伝するXの投稿文を1つ生成してください。
+    prompt = f"""以下のnote記事を参考に、Xの投稿文を1つ生成してください。
 
 【記事タイトル】{article['title']}{body_section}{style_examples}
 
@@ -108,11 +108,12 @@ def generate_tweet(article, body, past_tweets):
 - 150文字以内
 - 絵文字は使わない
 - 上記の過去X投稿の文体・言い回しに合わせる
-- 記事の具体的な内容・数字・気づきを盛り込む
+- 記事の内容を参考にしつつ、同じテーマ・文脈で新規の視点や気づきを生成してもOK
+- 記事の引用だけに縛られず、アフィリエイト・SEO・副業・AI活用に関連する有益な内容であれば自由に展開してよい
 - URLは入れない
 - 投稿文のみ出力（説明文・前置き不要）
 - 「SEOの常識が変わった」「常識が変わった」のような使い古されたフレーズは使わない
-- 毎回異なる切り口・書き出しにする（体験談・数字・問いかけ・逆説など）"""
+- 毎回異なる切り口・書き出しにする（体験談・数字・問いかけ・逆説・具体例など）"""
 
     message = client.messages.create(
         model="claude-haiku-4-5-20251001",
