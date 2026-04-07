@@ -43,19 +43,16 @@ def post_to_x(title, excerpt):
     if len(text) > 280:
         text = text[:279]
 
-    client = tweepy.Client(
-        consumer_key=os.environ["X_API_KEY"],
-        consumer_secret=os.environ["X_API_SECRET"],
-        access_token=os.environ["X_ACCESS_TOKEN"],
-        access_token_secret=os.environ["X_ACCESS_TOKEN_SECRET"],
+    auth = tweepy.OAuth1UserHandler(
+        os.environ["X_API_KEY"],
+        os.environ["X_API_SECRET"],
+        os.environ["X_ACCESS_TOKEN"],
+        os.environ["X_ACCESS_TOKEN_SECRET"],
     )
+    api = tweepy.API(auth)
 
-    # 認証確認
-    me = client.get_me()
-    print(f"認証OK: @{me.data.username}")
-
-    response = client.create_tweet(text=text)
-    print(f"投稿成功: tweet_id={response.data['id']}")
+    response = api.update_status(text)
+    print(f"投稿成功: tweet_id={response.id}")
     print(f"内容:\n{text}")
 
 
