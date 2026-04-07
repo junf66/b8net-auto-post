@@ -1,24 +1,52 @@
 import os
 import random
 import requests
+import anthropic
+import feedparser
 from requests_oauthlib import OAuth1
 
-TARGET_URL = "https://note.com/affiliate_note/n/na689ee7abbc9"
-
-TWEETS = [
-    f"X APIがついに従量課金に！ツイート投稿1回わずか約1.5円。月3万円→月数百円へ激変。個人開発者に革命が来た🔥\n詳細→ {TARGET_URL}",
-    f"2026年2月、X APIが従量課金（pay-as-you-go）に移行。1日10投稿しても月450円程度。ボット開発の参入障壁が劇的に下がった件を徹底解説📖\n{TARGET_URL}",
-    f"X API月額200ドル→従量課金へ。使わなければ料金ゼロ。スタートアップや個人開発者にとってゲームチェンジャーな変化を解説🦄\n{TARGET_URL}",
-    f"LocalLLM × X API従量課金の組み合わせが最強。AI連携ボットを初期コストほぼゼロで作れる時代が来た。その全貌を解説👇\n{TARGET_URL}",
-    f"「X APIが高すぎて諦めた」という人へ。2026年2月から従量課金になり、趣味のボット開発が現実的なコストで可能に。詳細はこちら→ {TARGET_URL}",
-    f"X API新料金まとめ\n・投稿取得: 約0.75円/件\n・ツイート投稿: 約1.5円/回\n月200ドル固定から大幅コストダウン。開発者エコシステム復活なるか🔥\n{TARGET_URL}",
-    f"ニュースボット・自動投稿・センチメント分析…X API従量課金で個人が作れるサービスの可能性が爆増。具体的な活用法を徹底解説📊\n{TARGET_URL}",
-]
+NOTE_RSS_URL = "https://note.com/affiliate_note/rss"
+NOTE_AUTHOR_URL = "https://note.com/affiliate_note"
 
 
-def post_to_x():
-    text = random.choice(TWEETS)
+def fetch_articles():
+    feed = feedparser.parse(NOTE_RSS_URL)
+    articles = []
+    for entry in feed.entries[:10]:
+        articles.append({
+            "title": entry.title,
+            "url": entry.link,
+            "summary": entry.get("summary", "")[:300],
+        })
+    return articles
 
+
+def generate_tweet(article):
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+    prompt = f"""以下のnote記事を宣伝するXのツイートを1つ生成してください。
+
+記事タイトル: {article['title']}
+記事URL: {article['url']}
+記事概要: {article['summary']}
+
+条件:
+- URL除いて150文字以内
+- アフィリエイト・副業・AI活用に興味がある人に響く内容
+- 絵文字を適度に使う
+- 記事にない新しい切り口・角度でもOK
+- URLは必ず末尾に入れる
+- ツイート本文のみ出力（説明文不要）"""
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=400,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()
+
+
+def post_to_x(text):
     auth = OAuth1(
         os.environ["X_API_KEY"],
         os.environ["X_API_SECRET"],
@@ -32,9 +60,6 @@ def post_to_x():
         auth=auth,
     )
 
-    print(f"ステータスコード: {response.status_code}")
-    print(f"レスポンス: {response.text}")
-
     if response.status_code == 201:
         data = response.json()
         print(f"投稿成功: tweet_id={data['data']['id']}")
@@ -44,4 +69,12 @@ def post_to_x():
 
 
 if __name__ == "__main__":
-    post_to_x()
+    articles = fetch_articles()
+    if not articles:
+        raise Exception("記事が取得できませんでした")
+
+    article = random.choice(articles)
+    print(f"選択記事: {article['title']}")
+
+    text = generate_tweet(article)
+    post_to_x(text)
