@@ -19,7 +19,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests requests-oauthlib anthropic feedparser
+        run: pip install requests requests-oauthlib anthropic feedparser beautifulsoup4
 
       - name: Post to X
         env:
