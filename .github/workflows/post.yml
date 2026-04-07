@@ -2,9 +2,9 @@ name: Auto Post to X
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # 毎日 09:00 JST
-    - cron: '0 6 * * *'   # 毎日 15:00 JST
-    - cron: '0 12 * * *'  # 毎日 21:00 JST
+    - cron: '19 1 * * *'   # 毎日 10:19 JST
+    - cron: '7 7 * * *'    # 毎日 16:07 JST
+    - cron: '38 13 * * *'  # 毎日 22:38 JST
   workflow_dispatch:        # 手動実行も可能
 
 jobs:
