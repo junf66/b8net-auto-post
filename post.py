@@ -49,6 +49,11 @@ def post_to_x(title, excerpt):
         access_token=os.environ["X_ACCESS_TOKEN"],
         access_token_secret=os.environ["X_ACCESS_TOKEN_SECRET"],
     )
+
+    # 認証確認
+    me = client.get_me()
+    print(f"認証OK: @{me.data.username}")
+
     response = client.create_tweet(text=text)
     print(f"投稿成功: tweet_id={response.data['id']}")
     print(f"内容:\n{text}")
