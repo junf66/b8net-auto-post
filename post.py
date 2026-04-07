@@ -159,11 +159,16 @@ if __name__ == "__main__":
     past_tweets = fetch_past_tweets()
     print(f"過去ツイート取得数: {len(past_tweets)}")
 
+    # ぶら下げ投稿するか抽選（25%）
+    with_reply = random.random() < 0.25
+
     # 1個目の投稿
     text = generate_tweet(article, body, past_tweets)
-    text = text.rstrip() + "\n詳しくは↓"
+    if with_reply:
+        text = text.rstrip() + "\n詳しくは↓"
     tweet_id = post_to_x(text)
 
     # 2個目（ぶらさげ）：URL付き
-    reply_text = f"詳しくはnoteで解説してます。\n{article['url']}"
-    post_to_x(reply_text, reply_to_id=tweet_id)
+    if with_reply:
+        reply_text = f"詳しくはnoteで解説してます。\n{article['url']}"
+        post_to_x(reply_text, reply_to_id=tweet_id)
