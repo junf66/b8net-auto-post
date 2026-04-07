@@ -1,6 +1,7 @@
 import os
 import random
-import tweepy
+import requests
+from requests_oauthlib import OAuth1
 
 TARGET_URL = "https://note.com/affiliate_note/n/na689ee7abbc9"
 
@@ -18,17 +19,28 @@ TWEETS = [
 def post_to_x():
     text = random.choice(TWEETS)
 
-    auth = tweepy.OAuth1UserHandler(
+    auth = OAuth1(
         os.environ["X_API_KEY"],
         os.environ["X_API_SECRET"],
         os.environ["X_ACCESS_TOKEN"],
         os.environ["X_ACCESS_TOKEN_SECRET"],
     )
-    api = tweepy.API(auth)
 
-    response = api.update_status(text)
-    print(f"投稿成功: tweet_id={response.id}")
-    print(f"内容:\n{text}")
+    response = requests.post(
+        "https://api.twitter.com/2/tweets",
+        json={"text": text},
+        auth=auth,
+    )
+
+    print(f"ステータスコード: {response.status_code}")
+    print(f"レスポンス: {response.text}")
+
+    if response.status_code == 201:
+        data = response.json()
+        print(f"投稿成功: tweet_id={data['data']['id']}")
+        print(f"内容:\n{text}")
+    else:
+        raise Exception(f"投稿失敗: {response.status_code} {response.text}")
 
 
 if __name__ == "__main__":
