@@ -1,47 +1,22 @@
 import os
 import random
-import requests
 import tweepy
-from bs4 import BeautifulSoup
 
-NOTE_URL = "https://note.com/affiliate_note"
 TARGET_URL = "https://note.com/affiliate_note/n/na689ee7abbc9"
 
-TEMPLATES = [
-    "💡 {title}\n\n{excerpt}\n\n👇 詳しくはこちら\n{url}",
-    "📢 {title}\n\n{excerpt}\n\n✅ {url}",
-    "🔥 {title}\n\n{excerpt}\n\n詳細→ {url}",
+TWEETS = [
+    f"X APIがついに従量課金に！ツイート投稿1回わずか約1.5円。月3万円→月数百円へ激変。個人開発者に革命が来た🔥\n詳細→ {TARGET_URL}",
+    f"2026年2月、X APIが従量課金（pay-as-you-go）に移行。1日10投稿しても月450円程度。ボット開発の参入障壁が劇的に下がった件を徹底解説📖\n{TARGET_URL}",
+    f"X API月額200ドル→従量課金へ。使わなければ料金ゼロ。スタートアップや個人開発者にとってゲームチェンジャーな変化を解説🦄\n{TARGET_URL}",
+    f"LocalLLM × X API従量課金の組み合わせが最強。AI連携ボットを初期コストほぼゼロで作れる時代が来た。その全貌を解説👇\n{TARGET_URL}",
+    f"「X APIが高すぎて諦めた」という人へ。2026年2月から従量課金になり、趣味のボット開発が現実的なコストで可能に。詳細はこちら→ {TARGET_URL}",
+    f"X API新料金まとめ\n・投稿取得: 約0.75円/件\n・ツイート投稿: 約1.5円/回\n月200ドル固定から大幅コストダウン。開発者エコシステム復活なるか🔥\n{TARGET_URL}",
+    f"ニュースボット・自動投稿・センチメント分析…X API従量課金で個人が作れるサービスの可能性が爆増。具体的な活用法を徹底解説📊\n{TARGET_URL}",
 ]
 
 
-def fetch_note_content():
-    headers = {"User-Agent": "Mozilla/5.0"}
-    res = requests.get(NOTE_URL, headers=headers, timeout=10)
-    soup = BeautifulSoup(res.text, "html.parser")
-
-    # タイトル取得
-    title_tag = soup.find("meta", property="og:title")
-    title = title_tag["content"] if title_tag else "アフィリエイト攻略note"
-
-    # ディスクリプション取得
-    desc_tag = soup.find("meta", property="og:description")
-    desc = desc_tag["content"] if desc_tag else ""
-
-    # 150文字以内に収める（URLの分を引く）
-    max_len = 150 - len(TARGET_URL) - 10
-    if len(desc) > max_len:
-        desc = desc[:max_len] + "…"
-
-    return title, desc
-
-
-def post_to_x(title, excerpt):
-    template = random.choice(TEMPLATES)
-    text = template.format(title=title, excerpt=excerpt, url=TARGET_URL)
-
-    # Xの280文字制限チェック
-    if len(text) > 280:
-        text = text[:279]
+def post_to_x():
+    text = random.choice(TWEETS)
 
     auth = tweepy.OAuth1UserHandler(
         os.environ["X_API_KEY"],
@@ -57,5 +32,4 @@ def post_to_x(title, excerpt):
 
 
 if __name__ == "__main__":
-    title, excerpt = fetch_note_content()
-    post_to_x(title, excerpt)
+    post_to_x()
