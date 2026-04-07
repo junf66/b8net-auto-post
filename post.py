@@ -90,7 +90,7 @@ def fetch_past_tweets():
     return []
 
 
-def generate_tweet(article, body, past_tweets, include_url):
+def generate_tweet(article, body, past_tweets):
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     style_examples = ""
@@ -100,22 +100,16 @@ def generate_tweet(article, body, past_tweets, include_url):
 
     body_section = f"\n\n【記事本文（抜粋）】\n{body}" if body else ""
 
-    url_instruction = (
-        f"末尾に必ず以下のURLを入れる: {article['url']}"
-        if include_url
-        else "URLは入れない"
-    )
-
     prompt = f"""以下のnote記事を宣伝するXの投稿文を1つ生成してください。
 
 【記事タイトル】{article['title']}{body_section}{style_examples}
 
 【条件】
-- 150文字以内（URL含まず）
+- 150文字以内
 - 絵文字は使わない
 - 上記の過去X投稿の文体・言い回しに合わせる
 - 記事の具体的な内容・数字・気づきを盛り込む
-- {url_instruction}
+- URLは入れない
 - 投稿文のみ出力（説明文・前置き不要）"""
 
     message = client.messages.create(
@@ -126,17 +120,23 @@ def generate_tweet(article, body, past_tweets, include_url):
     return message.content[0].text.strip()
 
 
-def post_to_x(text):
+def post_to_x(text, reply_to_id=None):
+    payload = {"text": text}
+    if reply_to_id:
+        payload["reply"] = {"in_reply_to_tweet_id": reply_to_id}
+
     response = requests.post(
         "https://api.twitter.com/2/tweets",
-        json={"text": text},
+        json=payload,
         auth=get_oauth(),
     )
 
     if response.status_code == 201:
         data = response.json()
-        print(f"投稿成功: tweet_id={data['data']['id']}")
+        tweet_id = data["data"]["id"]
+        print(f"投稿成功: tweet_id={tweet_id}")
         print(f"内容:\n{text}")
+        return tweet_id
     else:
         raise Exception(f"投稿失敗: {response.status_code} {response.text}")
 
@@ -155,8 +155,10 @@ if __name__ == "__main__":
     past_tweets = fetch_past_tweets()
     print(f"過去ツイート取得数: {len(past_tweets)}")
 
-    include_url = random.random() < 1 / 3
-    print(f"URL含む: {include_url}")
+    # 1個目の投稿
+    text = generate_tweet(article, body, past_tweets)
+    tweet_id = post_to_x(text)
 
-    text = generate_tweet(article, body, past_tweets, include_url)
-    post_to_x(text)
+    # 2個目（ぶらさげ）：URL付き
+    reply_text = f"詳しくはnoteで解説してます。\n{article['url']}"
+    post_to_x(reply_text, reply_to_id=tweet_id)
