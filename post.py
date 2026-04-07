@@ -105,7 +105,7 @@ def generate_tweet(article, body, past_tweets):
 【記事タイトル】{article['title']}{body_section}{style_examples}
 
 【条件】
-- 150文字以内
+- 145文字以内（末尾に「詳しくは↓」が付くため）
 - 絵文字は使わない
 - 上記の過去X投稿の文体・言い回しに合わせる
 - 記事の内容を参考にしつつ、同じテーマ・文脈で新規の視点や気づきを生成してもOK
@@ -161,6 +161,7 @@ if __name__ == "__main__":
 
     # 1個目の投稿
     text = generate_tweet(article, body, past_tweets)
+    text = text.rstrip() + "\n詳しくは↓"
     tweet_id = post_to_x(text)
 
     # 2個目（ぶらさげ）：URL付き
