@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from requests_oauthlib import OAuth1
 
 NOTE_RSS_URL = "https://note.com/affiliate_note/rss"
-X_USER_ID = "2041342368746790912"
+X_USERNAME = "b8_net"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 
@@ -68,15 +68,25 @@ def fetch_article_body(url):
 
 
 def fetch_past_tweets():
+    # ユーザー名からIDを取得
+    res = requests.get(
+        f"https://api.twitter.com/2/users/by/username/{X_USERNAME}",
+        auth=get_oauth(),
+    )
+    if res.status_code != 200:
+        print(f"ユーザーID取得失敗: {res.status_code}")
+        return []
+    user_id = res.json()["data"]["id"]
+
     response = requests.get(
-        f"https://api.twitter.com/2/users/{X_USER_ID}/tweets",
+        f"https://api.twitter.com/2/users/{user_id}/tweets",
         params={"max_results": 10, "tweet.fields": "text"},
         auth=get_oauth(),
     )
-    print(f"過去ツイートAPI: {response.status_code} {response.text[:300]}")
     if response.status_code == 200:
         data = response.json().get("data", [])
         return [t["text"] for t in data]
+    print(f"過去ツイート取得失敗: {response.status_code} {response.text[:200]}")
     return []
 
 
