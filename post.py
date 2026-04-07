@@ -73,10 +73,10 @@ def fetch_past_tweets():
         params={"max_results": 10, "tweet.fields": "text"},
         auth=get_oauth(),
     )
+    print(f"過去ツイートAPI: {response.status_code} {response.text[:300]}")
     if response.status_code == 200:
         data = response.json().get("data", [])
         return [t["text"] for t in data]
-    print(f"過去ツイート取得失敗: {response.status_code}")
     return []
 
 
