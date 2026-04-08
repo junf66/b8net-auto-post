@@ -3,7 +3,7 @@ name: Auto Post to X
 on:
   schedule:
     - cron: '0 1 * * *'   # 10:00 JST基準 + ランダム遅延 → note投稿
-    - cron: '0 9 * * *'   # 18:00 JST基準 + ランダム遅延 → SEO投稿
+    - cron: '0 12 * * *'  # 21:00 JST基準 + ランダム遅延 → SEO投稿
   workflow_dispatch:
     inputs:
       post_type:
