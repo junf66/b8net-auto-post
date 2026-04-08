@@ -11,6 +11,10 @@ NOTE_RSS_URL = "https://note.com/affiliate_note/rss"
 X_USERNAME = "b8_net"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+EXCLUDE_URLS = [
+    "https://note.com/affiliate_note/n/ne273e4374d27",
+]
+
 
 def get_oauth():
     return OAuth1(
@@ -25,10 +29,11 @@ def fetch_articles():
     feed = feedparser.parse(NOTE_RSS_URL)
     articles = []
     for entry in feed.entries:
-        articles.append({
-            "title": entry.title,
-            "url": entry.link,
-        })
+        if entry.link not in EXCLUDE_URLS:
+            articles.append({
+                "title": entry.title,
+                "url": entry.link,
+            })
     return articles
 
 
