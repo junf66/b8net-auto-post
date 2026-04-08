@@ -95,7 +95,7 @@ def fetch_past_tweets():
     return []
 
 
-def generate_tweet(article, body, past_tweets):
+def generate_note_tweet(article, body, past_tweets):
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     style_examples = ""
@@ -129,6 +129,34 @@ def generate_tweet(article, body, past_tweets):
     return message.content[0].text.strip()
 
 
+def generate_seo_tweet(past_tweets):
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+    style_examples = ""
+    if past_tweets:
+        examples = "\n".join(f"- {t}" for t in past_tweets[:5])
+        style_examples = f"\n\n【文体・言い回しの参考（過去のX投稿）】\n{examples}"
+
+    prompt = f"""SEO・アフィリエイト・副業・AI活用に関する短い投稿文を1つ生成してください。{style_examples}
+
+【条件】
+- 100文字以内
+- 絵文字は使わない
+- 上記の過去X投稿の文体・言い回しに合わせる
+- 検索・コンテンツ・収益化に関する実践的な知見や気づきを簡潔に
+- URLは入れない
+- 投稿文のみ出力（説明文・前置き不要）
+- 「SEOの常識が変わった」「常識が変わった」のような使い古されたフレーズは使わない
+- 毎回異なる切り口・書き出しにする（体験談・数字・問いかけ・逆説・具体例など）"""
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()
+
+
 def post_to_x(text, reply_to_id=None):
     payload = {"text": text}
     if reply_to_id:
@@ -151,29 +179,32 @@ def post_to_x(text, reply_to_id=None):
 
 
 if __name__ == "__main__":
-    articles = fetch_articles()
-    if not articles:
-        raise Exception("記事が取得できませんでした")
-
-    article = random.choice(articles)
-    print(f"選択記事: {article['title']}")
-
-    body = fetch_article_body(article["url"])
-    print(f"本文取得: {len(body)}文字")
+    post_type = os.environ.get("POST_TYPE", "note")
+    print(f"投稿タイプ: {post_type}")
 
     past_tweets = fetch_past_tweets()
     print(f"過去ツイート取得数: {len(past_tweets)}")
 
-    # ぶら下げ投稿するか抽選（25%）
-    with_reply = random.random() < 0.25
+    if post_type == "seo":
+        # SEO短文投稿（ぶら下げなし）
+        text = generate_seo_tweet(past_tweets)
+        post_to_x(text)
 
-    # 1個目の投稿
-    text = generate_tweet(article, body, past_tweets)
-    if with_reply:
+    else:
+        # note記事引用投稿（ぶら下げ100%）
+        articles = fetch_articles()
+        if not articles:
+            raise Exception("記事が取得できませんでした")
+
+        article = random.choice(articles)
+        print(f"選択記事: {article['title']}")
+
+        body = fetch_article_body(article["url"])
+        print(f"本文取得: {len(body)}文字")
+
+        text = generate_note_tweet(article, body, past_tweets)
         text = text.rstrip() + "\n詳しくは↓"
-    tweet_id = post_to_x(text)
+        tweet_id = post_to_x(text)
 
-    # 2個目（ぶらさげ）：URL付き
-    if with_reply:
         reply_text = f"詳しくはnoteで解説してます。\n{article['url']}"
         post_to_x(reply_text, reply_to_id=tweet_id)
