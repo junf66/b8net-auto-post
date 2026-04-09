@@ -110,7 +110,8 @@ def generate_note_tweet(article, body, past_tweets):
 【記事タイトル】{article['title']}{body_section}{style_examples}
 
 【条件】
-- 145文字以内（末尾に「詳しくは↓」が付くため）
+- 145文字以内
+- 「詳しくは↓」は含めない（自動付与するため）
 - 絵文字は使わない
 - 上記の過去X投稿の文体・言い回しに合わせる
 - 記事の内容を参考にしつつ、同じテーマ・文脈で新規の視点や気づきを生成してもOK
@@ -203,7 +204,8 @@ if __name__ == "__main__":
         print(f"本文取得: {len(body)}文字")
 
         text = generate_note_tweet(article, body, past_tweets)
-        text = text.rstrip() + "\n詳しくは↓"
+        text = re.sub(r"\n?詳しくは↓\s*$", "", text).rstrip()
+        text = text + "\n詳しくは↓"
         tweet_id = post_to_x(text)
 
         reply_text = f"詳しくはnoteで解説してます。\n{article['url']}"
