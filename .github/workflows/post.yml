@@ -11,6 +11,9 @@ on:
         required: false
         default: 'note'
 
+permissions:
+  contents: write
+
 jobs:
   post:
     runs-on: ubuntu-latest
@@ -42,7 +45,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests requests-oauthlib anthropic feedparser beautifulsoup4
+        run: pip install -r requirements.txt
 
       - name: Post to X
         env:
@@ -52,3 +55,15 @@ jobs:
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python post.py
+
+      - name: Commit posted log
+        if: env.POST_TYPE == 'note' || github.event.inputs.post_type == 'note' || github.event.inputs.post_type == ''
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add posted_urls.json
+          git diff --staged --quiet && echo "No changes" || (
+            git pull --rebase &&
+            git commit -m "chore: update posted_urls.json [skip ci]" &&
+            git push
+          )

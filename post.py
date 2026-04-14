@@ -1,4 +1,5 @@
 import os
+import json
 import random
 import re
 import requests
@@ -6,16 +7,31 @@ import anthropic
 import feedparser
 from bs4 import BeautifulSoup
 from requests_oauthlib import OAuth1
+from datetime import datetime
 
 NOTE_RSS_URL = "https://note.com/affiliate_note/rss"
 X_USERNAME = "b8_net"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
+POSTED_LOG = "posted_urls.json"
 
 EXCLUDE_URLS = [
     "https://note.com/affiliate_note/n/ne273e4374d27",
 ]
 
 
+# ── 環境変数チェック ──────────────────────────────────────
+def check_required_env():
+    required = [
+        "X_API_KEY", "X_API_SECRET",
+        "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET",
+        "ANTHROPIC_API_KEY",
+    ]
+    missing = [k for k in required if not os.environ.get(k)]
+    if missing:
+        raise EnvironmentError(f"必須環境変数が未設定: {', '.join(missing)}")
+
+
+# ── OAuth ─────────────────────────────────────────────────
 def get_oauth():
     return OAuth1(
         os.environ["X_API_KEY"],
@@ -25,6 +41,32 @@ def get_oauth():
     )
 
 
+# ── 投稿済みURL管理 ───────────────────────────────────────
+def load_posted_urls():
+    if os.path.exists(POSTED_LOG):
+        try:
+            with open(POSTED_LOG, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_posted_url(url):
+    entries = load_posted_urls()
+    entries.append({"url": url, "posted_at": datetime.now().isoformat()})
+    entries = entries[-100:]  # 直近100件だけ保持
+    with open(POSTED_LOG, "w") as f:
+        json.dump(entries, f, ensure_ascii=False, indent=2)
+
+
+# ── 文字数チェック ────────────────────────────────────────
+def check_tweet_length(text, label="ツイート"):
+    if len(text) > 280:
+        raise ValueError(f"{label}が文字数制限超過: {len(text)}文字 (上限280)")
+
+
+# ── 記事取得 ──────────────────────────────────────────────
 def fetch_articles():
     feed = feedparser.parse(NOTE_RSS_URL)
     articles = []
@@ -51,17 +93,15 @@ def fetch_article_body(url):
         scripts = soup.find_all("script", type="application/json")
         for script in scripts:
             try:
-                import json
                 data = json.loads(script.string)
                 text = json.dumps(data, ensure_ascii=False)
-                # bodyテキストを抽出
                 match = re.search(r'"body":"(.*?)"(?:,")', text)
                 if match:
                     return match.group(1).replace("\\n", "\n")[:3000]
             except Exception:
                 continue
 
-        # フォールバック: 全テキストから記事部分を推定
+        # フォールバック
         article_tag = soup.find("article")
         if article_tag:
             return article_tag.get_text(separator="\n", strip=True)[:3000]
@@ -72,8 +112,8 @@ def fetch_article_body(url):
         return ""
 
 
+# ── 過去ツイート取得 ──────────────────────────────────────
 def fetch_past_tweets():
-    # ユーザー名からIDを取得
     res = requests.get(
         f"https://api.twitter.com/2/users/by/username/{X_USERNAME}",
         auth=get_oauth(),
@@ -81,7 +121,10 @@ def fetch_past_tweets():
     if res.status_code != 200:
         print(f"ユーザーID取得失敗: {res.status_code}")
         return []
-    user_id = res.json()["data"]["id"]
+    user_id = res.json().get("data", {}).get("id")
+    if not user_id:
+        print("ユーザーIDが取得できませんでした")
+        return []
 
     response = requests.get(
         f"https://api.twitter.com/2/users/{user_id}/tweets",
@@ -95,6 +138,7 @@ def fetch_past_tweets():
     return []
 
 
+# ── ツイート生成 ──────────────────────────────────────────
 def generate_note_tweet(article, body, past_tweets):
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -159,7 +203,10 @@ def generate_seo_tweet(past_tweets):
     return message.content[0].text.strip()
 
 
+# ── X投稿 ─────────────────────────────────────────────────
 def post_to_x(text, reply_to_id=None):
+    check_tweet_length(text)
+
     payload = {"text": text}
     if reply_to_id:
         payload["reply"] = {"in_reply_to_tweet_id": reply_to_id}
@@ -180,7 +227,10 @@ def post_to_x(text, reply_to_id=None):
         raise Exception(f"投稿失敗: {response.status_code} {response.text}")
 
 
+# ── メイン ────────────────────────────────────────────────
 if __name__ == "__main__":
+    check_required_env()
+
     post_type = os.environ.get("POST_TYPE", "note")
     print(f"投稿タイプ: {post_type}")
 
@@ -193,12 +243,19 @@ if __name__ == "__main__":
         post_to_x(text)
 
     else:
-        # note記事引用投稿（ぶら下げ100%）
+        # note記事引用投稿
         articles = fetch_articles()
         if not articles:
             raise Exception("記事が取得できませんでした")
 
-        article = random.choice(articles)
+        # 重複投稿防止：未投稿記事を優先選択
+        posted_urls = {e["url"] for e in load_posted_urls()}
+        unposted = [a for a in articles if a["url"] not in posted_urls]
+        if not unposted:
+            print("全記事投稿済み。リセットして再利用します。")
+            unposted = articles
+
+        article = random.choice(unposted)
         print(f"選択記事: {article['title']}")
 
         body = fetch_article_body(article["url"])
@@ -209,5 +266,12 @@ if __name__ == "__main__":
         text = text + "\n詳しくは↓"
         tweet_id = post_to_x(text)
 
+        # 投稿済みURLを記録
+        save_posted_url(article["url"])
+
+        # リプライ投稿（失敗してもメイン投稿は維持）
         reply_text = f"詳しくはnoteで解説してます。\n{article['url']}"
-        post_to_x(reply_text, reply_to_id=tweet_id)
+        try:
+            post_to_x(reply_text, reply_to_id=tweet_id)
+        except Exception as e:
+            print(f"リプライ投稿失敗（メイン投稿は成功済み）: {e}")
