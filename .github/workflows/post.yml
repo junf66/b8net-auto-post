@@ -17,7 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Random delay
+      - name: Random delay (schedule only)
+        if: github.event_name == 'schedule'
         run: |
           if [ "${{ github.event.schedule }}" = "0 1 * * *" ]; then
             sleep $((RANDOM % 5400))   # note: 0–90分
