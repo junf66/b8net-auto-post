@@ -57,8 +57,12 @@ jobs:
         run: python post.py
 
       - name: Commit posted log
-        if: env.POST_TYPE == 'note' || github.event.inputs.post_type == 'note' || github.event.inputs.post_type == ''
+        if: env.POST_TYPE == 'note'
         run: |
+          if [ ! -f posted_urls.json ]; then
+            echo "posted_urls.json not found (post.py が失敗したか未生成)。スキップ。"
+            exit 0
+          fi
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git add posted_urls.json
