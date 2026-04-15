@@ -61,9 +61,56 @@ def save_posted_url(url):
 
 
 # ── 文字数チェック ────────────────────────────────────────
+# X の加重文字カウント（CJK・ひらがな・カタカナ・ハングル等は2単位、それ以外は1単位、上限280）
+# 参考: https://developer.x.com/en/docs/counting-characters
+_WEIGHT2_RANGES = [
+    (0x1100, 0x115F),
+    (0x2E80, 0x303E),
+    (0x3041, 0x33FF),
+    (0x3400, 0x4DBF),
+    (0x4E00, 0x9FFF),
+    (0xA000, 0xA4CF),
+    (0xAC00, 0xD7A3),
+    (0xF900, 0xFAFF),
+    (0xFE30, 0xFE4F),
+    (0xFF00, 0xFF60),
+    (0xFFE0, 0xFFE6),
+]
+
+
+def x_weighted_length(text):
+    total = 0
+    for ch in text:
+        cp = ord(ch)
+        if any(lo <= cp <= hi for lo, hi in _WEIGHT2_RANGES):
+            total += 2
+        else:
+            total += 1
+    return total
+
+
 def check_tweet_length(text, label="ツイート"):
-    if len(text) > 280:
-        raise ValueError(f"{label}が文字数制限超過: {len(text)}文字 (上限280)")
+    weighted = x_weighted_length(text)
+    if weighted > 280:
+        raise ValueError(
+            f"{label}が文字数制限超過: 加重{weighted}単位 / {len(text)}文字 (上限280)"
+        )
+
+
+def trim_to_weighted_limit(text, limit=280):
+    """加重文字数が limit を超えないように末尾を削る"""
+    if x_weighted_length(text) <= limit:
+        return text
+    out = []
+    total = 0
+    for ch in text:
+        cp = ord(ch)
+        w = 2 if any(lo <= cp <= hi for lo, hi in _WEIGHT2_RANGES) else 1
+        if total + w > limit:
+            break
+        out.append(ch)
+        total += w
+    return "".join(out)
 
 
 # ── 記事取得 ──────────────────────────────────────────────
@@ -154,7 +201,7 @@ def generate_note_tweet(article, body, past_tweets):
 【記事タイトル】{article['title']}{body_section}{style_examples}
 
 【条件】
-- 145文字以内
+- 125文字以内（日本語は1文字=2単位で計算されるため厳守）
 - 「詳しくは↓」は含めない（自動付与するため）
 - 絵文字は使わない
 - 上記の過去X投稿の文体・言い回しに合わせる
@@ -240,6 +287,7 @@ if __name__ == "__main__":
     if post_type == "seo":
         # SEO短文投稿（ぶら下げなし）
         text = generate_seo_tweet(past_tweets)
+        text = trim_to_weighted_limit(text, 280)
         post_to_x(text)
 
     else:
@@ -263,7 +311,10 @@ if __name__ == "__main__":
 
         text = generate_note_tweet(article, body, past_tweets)
         text = re.sub(r"\n?詳しくは↓\s*$", "", text).rstrip()
-        text = text + "\n詳しくは↓"
+        suffix = "\n詳しくは↓"
+        # suffix を含めて280加重単位に収まるよう本文を必要分だけ削る
+        body_limit = 280 - x_weighted_length(suffix)
+        text = trim_to_weighted_limit(text, body_limit) + suffix
         tweet_id = post_to_x(text)
 
         # 投稿済みURLを記録
