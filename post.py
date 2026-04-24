@@ -2,6 +2,7 @@ import os
 import json
 import random
 import re
+import time
 import requests
 import anthropic
 import feedparser
@@ -12,6 +13,10 @@ from datetime import datetime
 NOTE_RSS_URL = "https://note.com/affiliate_note/rss"
 X_USERNAME = "b8_net"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
+X_API_HEADERS = {
+    "User-Agent": "b8net-auto-post/1.0",
+    "Accept": "application/json",
+}
 POSTED_LOG = "posted_urls.json"
 
 EXCLUDE_URLS = [
@@ -39,6 +44,26 @@ def get_oauth():
         os.environ["X_ACCESS_TOKEN"],
         os.environ["X_ACCESS_TOKEN_SECRET"],
     )
+
+
+def is_cloudflare_block(response):
+    return (response.status_code == 403
+            and "text/html" in response.headers.get("content-type", "")
+            and "cloudflare" in response.text.lower())
+
+
+def x_api_request(method, url, max_retries=3, **kwargs):
+    kwargs.setdefault("headers", {}).update(X_API_HEADERS)
+    kwargs["auth"] = get_oauth()
+    for attempt in range(max_retries + 1):
+        response = requests.request(method, url, **kwargs)
+        if not is_cloudflare_block(response):
+            return response
+        wait = 2 ** attempt * 5  # 5s, 10s, 20s, 40s
+        print(f"Cloudflare ブロック検知 (試行{attempt+1}/{max_retries+1})。{wait}秒待機...")
+        time.sleep(wait)
+    print("Cloudflare ブロック: 全リトライ失敗")
+    return response
 
 
 # ── 投稿済みURL管理 ───────────────────────────────────────
@@ -161,9 +186,9 @@ def fetch_article_body(url):
 
 # ── 過去ツイート取得 ──────────────────────────────────────
 def fetch_past_tweets():
-    res = requests.get(
+    res = x_api_request(
+        "GET",
         f"https://api.twitter.com/2/users/by/username/{X_USERNAME}",
-        auth=get_oauth(),
     )
     if res.status_code != 200:
         print(f"ユーザーID取得失敗: {res.status_code}")
@@ -173,10 +198,10 @@ def fetch_past_tweets():
         print("ユーザーIDが取得できませんでした")
         return []
 
-    response = requests.get(
+    response = x_api_request(
+        "GET",
         f"https://api.twitter.com/2/users/{user_id}/tweets",
         params={"max_results": 10, "tweet.fields": "text"},
-        auth=get_oauth(),
     )
     if response.status_code == 200:
         data = response.json().get("data", [])
@@ -258,10 +283,11 @@ def post_to_x(text, reply_to_id=None):
     if reply_to_id:
         payload["reply"] = {"in_reply_to_tweet_id": reply_to_id}
 
-    response = requests.post(
+    response = x_api_request(
+        "POST",
         "https://api.twitter.com/2/tweets",
+        max_retries=4,
         json=payload,
-        auth=get_oauth(),
     )
 
     if response.status_code == 201:
@@ -271,7 +297,7 @@ def post_to_x(text, reply_to_id=None):
         print(f"内容:\n{text}")
         return tweet_id
     else:
-        raise Exception(f"投稿失敗: {response.status_code} {response.text}")
+        raise Exception(f"投稿失敗: {response.status_code} {response.text[:500]}")
 
 
 # ── メイン ────────────────────────────────────────────────
