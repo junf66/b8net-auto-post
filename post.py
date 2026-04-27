@@ -347,7 +347,7 @@ if __name__ == "__main__":
         save_posted_url(article["url"])
 
         # リプライ投稿（失敗してもメイン投稿は維持）
-        reply_text = f"詳しくはnoteで解説してます。\n{article['url']}"
+        reply_text = f"詳しくはnoteでまとめてます。\n{article['url']}"
         try:
             post_to_x(reply_text, reply_to_id=tweet_id)
         except Exception as e:
