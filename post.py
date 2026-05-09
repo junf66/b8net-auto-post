@@ -19,6 +19,29 @@ X_API_HEADERS = {
 }
 POSTED_LOG = "posted_urls.json"
 
+STYLE_SAMPLES = [
+    "AIが得意な「情報整理」と人間が得意な「意図理解」、これを組み合わせるのが最強。AIで下書き100記事作るより、検索意図を徹底分析した10記事の方が確実に稼げますね。",
+    "AIで大量記事生成してるアフィサイト、実はPVは増えるんだけど成約率ガタ落ちする傾向あります。理由は単純、ユーザーの検索意図を無視してるから。量より精度、これに尽きますね。",
+    "アフィリエイトサイトで成約率が低い時、ほとんどの人は記事数を増やすことだけ考えてます。でも実際は、既存記事の購買意欲層への内部リンク導線が甘いだけ。質より導線、これが意外と効きますよ。",
+    "企業ドメ重視のアルゴのせいなのか、６位くらいに落ちてCV激減、、一時的？テコ入れしていい？SEO野郎と判定されるから時期尚早？",
+    "Google完全オワコンになるまで、SEO粘らせてもらうわ。なんとか隙間見つけて、なんとかハック的なこと見つけて、なんとかなんとかする。",
+    "SEOやってます！なサイトをGoogleが嫌ってるのがわかる。",
+    "今でもペラとか含めて数十サイトGRC回してるんだけど、放置サイトが良さげな動き。頑張っていじってるのほど落とされてる。",
+    "稼げるクエリだと個人ブログ皆無じゃない？たしかに趣味領域などはそうなのかもしれないけど。\n\n上位表示したくてアフィやってるんじゃない。稼ぎたいんだ。",
+    "新規ドメのペラサイトがあがってるクエリあるんだけど特化うんぬんとかじゃなくて、内部リンクのあらゆる問題を勝手に回避してたから、って仮説がいま俺の中で出てきた。",
+    "上がったサイトがある、そして下がったサイトがある。相殺しても売上ダメージはある、、Googleウゴウゴ",
+    "アフィリエイトはオワコン\nと言われてからが勝負。",
+    "「飛ぶのが当たり前、飛ばないサイトは奇跡」1サイト飛ぶたびに落ち込む人は、最初から向いてない。\n\n↑の部分、とても共感。俺も昔はきつかったな、一喜一憂しかしてなかったよ。まあ今でも飛ぶと悲しいんだけど",
+    "アフィリエイト記事で成約率が低い？実は商品紹介の前に、読者の悩み解決パートを厚くするだけで改善することが多い。売上を急ぐと逆効果だ。信頼が先で、販売は後。地味だが確実な方法。",
+    "副業で月5万稼ぐまでは「とにかく記事数」で良いんだけど、そっから先は「記事の質」じゃなく「記事の評価の集約」が効く。散らばった評価を1本に寄せるだけで、AIコンテンツでも普通に上がる。",
+    "アプデ後でいつものようにまだ順位変動が大きめですが、落ちてここでテコ入れすると「はいはいあなたSEOな人ね」認定されそう説。いったん我慢でまだ静観してみる。",
+    "みなさんSNSやYouTubeや有料note、AIでアプリとかに行きまくってる。市場的には斜陽オーラあるけど、プレイヤー数的には？一周回ってワンチャンありなんじゃない？SEO。",
+    "アフィ関係ない旧友からフォローされて、ちょっとビビッておりますなう",
+    "TOP入れて全7記事のうち6記事消した。欲張ってロングテール拾おうとしてたやつ。選択と集中。",
+    "2年くらいノーメンテの記事、しかも商標+口コミの記事が復活して売上出始めている。謎。明日分析や。",
+    "今朝見たら収益柱のひとつの大事なクエリが3→12位くらいになってた。note書いてる場合じゃなかった、、",
+]
+
 EXCLUDE_URLS = [
     "https://note.com/affiliate_note/n/ne273e4374d27",
 ]
@@ -214,10 +237,9 @@ def fetch_past_tweets():
 def generate_note_tweet(article, body, past_tweets):
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    style_examples = ""
-    if past_tweets:
-        examples = "\n".join(f"- {t}" for t in past_tweets[:5])
-        style_examples = f"\n\n【文体・言い回しの参考（過去のX投稿）】\n{examples}"
+    samples = past_tweets[:5] if past_tweets else random.sample(STYLE_SAMPLES, 5)
+    examples = "\n".join(f"- {t}" for t in samples)
+    style_examples = f"\n\n【文体・言い回しの参考（過去のX投稿）】\n{examples}"
 
     body_section = f"\n\n【記事本文（抜粋）】\n{body}" if body else ""
 
@@ -250,10 +272,9 @@ def generate_note_tweet(article, body, past_tweets):
 def generate_seo_tweet(past_tweets):
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    style_examples = ""
-    if past_tweets:
-        examples = "\n".join(f"- {t}" for t in past_tweets[:5])
-        style_examples = f"\n\n【文体・言い回しの参考（過去のX投稿）】\n{examples}"
+    samples = past_tweets[:5] if past_tweets else random.sample(STYLE_SAMPLES, 5)
+    examples = "\n".join(f"- {t}" for t in samples)
+    style_examples = f"\n\n【文体・言い回しの参考（過去のX投稿）】\n{examples}"
 
     prompt = f"""SEO・アフィリエイト・副業・AI活用に関する短い投稿文を1つ生成してください。{style_examples}
 
