@@ -2,7 +2,7 @@ name: Auto Post to X
 
 on:
   schedule:
-    - cron: '0 1 * * *'   # 10:00 JST基準 + ランダム遅延 → note投稿
+    - cron: '0 1 * * 1,3,5'  # 10:00 JST + ランダム遅延 → note投稿（月水金）
     - cron: '30 10 * * *' # 19:30 JST基準 + ランダム遅延最大3h → 21:00±90分 → SEO投稿
   workflow_dispatch:
     inputs:
@@ -23,7 +23,7 @@ jobs:
       - name: Random delay (schedule only)
         if: github.event_name == 'schedule'
         run: |
-          if [ "${{ github.event.schedule }}" = "0 1 * * *" ]; then
+          if [ "${{ github.event.schedule }}" = "0 1 * * 1,3,5" ]; then
             sleep $((RANDOM % 5400))   # note: 0–90分
           else
             sleep $((RANDOM % 10800))  # seo: 0–180分（21:00±90分）
