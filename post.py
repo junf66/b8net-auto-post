@@ -18,6 +18,7 @@ X_API_HEADERS = {
     "Accept": "application/json",
 }
 POSTED_LOG = "posted_urls.json"
+TWEET_LOG = "posted_tweets.json"
 
 STYLE_SAMPLES = [
     "AIが得意な「情報整理」と人間が得意な「意図理解」、これを組み合わせるのが最強。AIで下書き100記事作るより、検索意図を徹底分析した10記事の方が確実に稼げますね。",
@@ -203,6 +204,34 @@ def save_posted_url(url):
     entries = entries[-100:]  # 直近100件だけ保持
     with open(POSTED_LOG, "w") as f:
         json.dump(entries, f, ensure_ascii=False, indent=2)
+
+
+# ── 投稿済みツイート履歴（重複検知用） ───────────────────
+def load_tweet_history():
+    if os.path.exists(TWEET_LOG):
+        try:
+            with open(TWEET_LOG, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_tweet_history(text):
+    entries = load_tweet_history()
+    entries.append({"text": text, "posted_at": datetime.now().isoformat()})
+    entries = entries[-50:]
+    with open(TWEET_LOG, "w") as f:
+        json.dump(entries, f, ensure_ascii=False, indent=2)
+
+
+def is_too_similar(new_text, history, threshold=10):
+    """冒頭 threshold 文字が過去の投稿と一致したら重複とみなす"""
+    new_opening = new_text[:threshold]
+    for entry in history:
+        if entry["text"][:threshold] == new_opening:
+            return True
+    return False
 
 
 # ── 文字数チェック ────────────────────────────────────────
@@ -444,11 +473,18 @@ if __name__ == "__main__":
     past_tweets = fetch_past_tweets()
     print(f"過去ツイート取得数: {len(past_tweets)}")
 
+    tweet_history = load_tweet_history()
+
     if post_type == "seo":
         # SEO短文投稿（ぶら下げなし）
-        text = generate_seo_tweet(past_tweets)
-        text = trim_to_weighted_limit(text, 280)
+        for attempt in range(4):
+            text = generate_seo_tweet(past_tweets)
+            text = trim_to_weighted_limit(text, 280)
+            if not is_too_similar(text, tweet_history):
+                break
+            print(f"重複検知（試行{attempt+1}）: 冒頭が過去投稿と類似。再生成...")
         post_to_x(text)
+        save_tweet_history(text)
 
     else:
         # note記事引用投稿
@@ -469,13 +505,17 @@ if __name__ == "__main__":
         body = fetch_article_body(article["url"])
         print(f"本文取得: {len(body)}文字")
 
-        text = generate_note_tweet(article, body, past_tweets)
-        text = re.sub(r"\n?詳しくは↓\s*$", "", text).rstrip()
+        for attempt in range(4):
+            text = generate_note_tweet(article, body, past_tweets)
+            text = re.sub(r"\n?詳しくは↓\s*$", "", text).rstrip()
+            if not is_too_similar(text, tweet_history):
+                break
+            print(f"重複検知（試行{attempt+1}）: 冒頭が過去投稿と類似。再生成...")
         suffix = "\n詳しくは↓"
-        # suffix を含めて280加重単位に収まるよう本文を必要分だけ削る
         body_limit = 280 - x_weighted_length(suffix)
         text = trim_to_weighted_limit(text, body_limit) + suffix
         tweet_id = post_to_x(text)
+        save_tweet_history(text)
 
         # 投稿済みURLを記録
         save_posted_url(article["url"])
