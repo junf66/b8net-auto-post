@@ -33,7 +33,7 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.post_type }}" ]; then
             echo "POST_TYPE=${{ github.event.inputs.post_type }}" >> $GITHUB_ENV
-          elif [ "${{ github.event.schedule }}" = "0 1 * * *" ]; then
+          elif [ "${{ github.event.schedule }}" = "0 1 * * 1,3,5" ]; then
             echo "POST_TYPE=note" >> $GITHUB_ENV
           else
             echo "POST_TYPE=seo" >> $GITHUB_ENV
@@ -57,21 +57,15 @@ jobs:
         run: python post.py
 
       - name: Commit posted log
-        if: env.POST_TYPE == 'note'
         run: |
-          if [ ! -f posted_urls.json ]; then
-            echo "posted_urls.json not found (post.py が失敗したか未生成)。スキップ。"
-            exit 0
-          fi
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add posted_urls.json
+          git add -f posted_urls.json posted_tweets.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No changes"
             exit 0
           fi
-          # 先にローカルコミットを作ってから rebase する（順序が逆だと pull --rebase が失敗する）
-          git commit -m "chore: update posted_urls.json [skip ci]"
+          git commit -m "chore: update post logs [skip ci]"
           git pull --rebase origin main || {
             git rebase --abort || true
             echo "Rebase conflict. Aborting."
