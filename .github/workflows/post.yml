@@ -3,7 +3,7 @@ name: Auto Post to X
 on:
   schedule:
     - cron: '0 1 * * *'          # 10:00 JST + ランダム遅延最大90分 → SEO投稿（毎日 10:00〜11:30）
-    - cron: '30 10 * * 1,3,5'    # 19:30 JST + ランダム遅延最大3h → note投稿（月水金 19:30〜22:30）
+    - cron: '30 10 * * 1,3,6'    # 19:30 JST + ランダム遅延最大3h → note投稿（月水土 19:30〜22:30）
   workflow_dispatch:
     inputs:
       post_type:
@@ -33,7 +33,7 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.post_type }}" ]; then
             echo "POST_TYPE=${{ github.event.inputs.post_type }}" >> $GITHUB_ENV
-          elif [ "${{ github.event.schedule }}" = "30 10 * * 1,3,5" ]; then
+          elif [ "${{ github.event.schedule }}" = "30 10 * * 1,3,6" ]; then
             echo "POST_TYPE=note" >> $GITHUB_ENV
           else
             echo "POST_TYPE=seo" >> $GITHUB_ENV
