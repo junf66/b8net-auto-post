@@ -7,12 +7,12 @@ name: Auto Post to X
 # 候補時刻に当たらない run は checkout もせず数秒で終わる。
 on:
   schedule:
-    - cron: '0 1 * * *'         # 10:00 JST (seo 候補 1・毎日)
-    - cron: '30 1 * * *'        # 10:30 JST (seo 候補 2)
-    - cron: '0 2 * * *'         # 11:00 JST (seo 候補 3)
-    - cron: '30 10 * * 1,3,6'   # 19:30 JST (note 候補 1・月水土)
-    - cron: '30 11 * * 1,3,6'   # 20:30 JST (note 候補 2)
-    - cron: '30 12 * * 1,3,6'   # 21:30 JST (note 候補 3)
+    - cron: '0 1 * * 1,2,3,4,5'         # 10:00 JST (seo 候補 1・月火水木金)
+    - cron: '30 1 * * 1,2,3,4,5'        # 10:30 JST (seo 候補 2)
+    - cron: '0 2 * * 1,2,3,4,5'         # 11:00 JST (seo 候補 3)
+    - cron: '30 10 * * 3,6'   # 19:30 JST (note 候補 1・水土)
+    - cron: '30 11 * * 3,6'   # 20:30 JST (note 候補 2)
+    - cron: '30 12 * * 3,6'   # 21:30 JST (note 候補 3)
   workflow_dispatch:
     inputs:
       post_type:
@@ -32,12 +32,12 @@ jobs:
         id: slot
         run: |
           case "${{ github.event.schedule }}" in
-            "0 1 * * *")        TYPE=seo;  SLOT=0 ;;
-            "30 1 * * *")       TYPE=seo;  SLOT=1 ;;
-            "0 2 * * *")        TYPE=seo;  SLOT=2 ;;
-            "30 10 * * 1,3,6")  TYPE=note; SLOT=0 ;;
-            "30 11 * * 1,3,6")  TYPE=note; SLOT=1 ;;
-            "30 12 * * 1,3,6")  TYPE=note; SLOT=2 ;;
+            "0 1 * * 1,2,3,4,5")        TYPE=seo;  SLOT=0 ;;
+            "30 1 * * 1,2,3,4,5")       TYPE=seo;  SLOT=1 ;;
+            "0 2 * * 1,2,3,4,5")        TYPE=seo;  SLOT=2 ;;
+            "30 10 * * 3,6")  TYPE=note; SLOT=0 ;;
+            "30 11 * * 3,6")  TYPE=note; SLOT=1 ;;
+            "30 12 * * 3,6")  TYPE=note; SLOT=2 ;;
             *)                  TYPE="${{ github.event.inputs.post_type }}"; SLOT=-1 ;;
           esac
           if [ "$SLOT" -ge 0 ]; then
