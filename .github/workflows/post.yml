@@ -41,7 +41,10 @@ jobs:
             *)                  TYPE="${{ github.event.inputs.post_type }}"; SLOT=-1 ;;
           esac
           if [ "$SLOT" -ge 0 ]; then
-            DAY=$(TZ=Asia/Tokyo date +%Y%m%d)
+            # UTC 日付で判定する。JST だと cron 遅延 (4〜6h) で note 枠が JST 深夜 0 時をまたぎ、
+            # 同じ日の 3 run が別の DAY を計算して全枠スキップすることがある (2026-10-03 に発生)。
+            # 候補 cron は UTC 01:00〜12:30 なので 11h 遅れても同じ UTC 日に収まる。
+            DAY=$(date -u +%Y%m%d)
             OFFSET=0; [ "$TYPE" = note ] && OFFSET=3
             CHOSEN=$(( (DAY * 7 + OFFSET) % 3 ))
             if [ "$SLOT" -ne "$CHOSEN" ]; then
