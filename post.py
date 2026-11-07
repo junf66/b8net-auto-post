@@ -140,6 +140,22 @@ STYLE_SAMPLES = [
     "TOP入れて全7記事のうち6記事消した。欲張ってロングテール拾おうとしてたもの。選択と集中。",
 ]
 
+# SEO 短文ツイートのテーマ。毎回1つ抽選する。半分を AI（Claude / Codex）にして比重を上げている
+SEO_TWEET_TOPICS = [
+    # --- AI（Claude / Codex）: 全体の半分 ---
+    "Claude Codeでのサイト運営の自動化（入稿・アフィリンク貼り替え・ASPの表記修正など）",
+    "Claude Codeをスマホから使って、スキマ時間でサイトを仕上げる話",
+    "Codexを使ったサイト運営や作業効率化",
+    "ClaudeとCodexの使い分け・比べて気づいたこと",
+    "ClaudeやCodexでキーワード調査・競合サイト調査をする話",
+    # --- SEO・アフィリエイト（中古ドメインの話はここでも扱わない） ---
+    "キーワード選定・穴場キーワードの探し方",
+    "内部リンク・サイト構造の改善",
+    "アフィリエイトの成約率・案件選び",
+    "Googleアップデートとの向き合い方",
+    "サイト運営の実体験・気づき",
+]
+
 EXCLUDE_URLS = [
     "https://note.com/affiliate_note/n/ne273e4374d27",
 ]
@@ -406,11 +422,16 @@ def generate_note_tweet(article, body, past_tweets):
 def generate_seo_tweet(past_tweets):
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    samples = past_tweets[:5] if past_tweets else random.sample(STYLE_SAMPLES, 5)
+    # 中古ドメインの投稿を文体参考に入れると話題まで引っ張られるので除外する
+    pool = [t for t in (past_tweets or STYLE_SAMPLES) if "中古" not in t] or STYLE_SAMPLES
+    samples = random.sample(pool, min(5, len(pool)))
     examples = "\n".join(f"- {t}" for t in samples)
     style_examples = f"\n\n【文体・言い回しの参考（過去のX投稿）】\n{examples}"
 
-    prompt = f"""SEO・アフィリエイト・副業・AI活用に関する短い投稿文を1つ生成してください。{style_examples}
+    topic = random.choice(SEO_TWEET_TOPICS)
+    prompt = f"""SEO・アフィリエイト運営者向けの短い投稿文を1つ生成してください。
+
+【今回のテーマ】{topic}{style_examples}
 
 【条件】
 - 100文字以内
@@ -427,7 +448,9 @@ def generate_seo_tweet(past_tweets):
   「AIで〜してる人、実は〜なんですよね」
   「〜してない？実は〜」
   「〜の場合、〜を疑え」
-  冒頭が毎回「AI」から始まるパターン
+  冒頭が毎回「AI」「Claude」「Codex」から始まるパターン
+- 中古ドメインの話題は扱わない（投稿が中古ドメインに偏っているため）
+- Claude・Codexの話題では、架空の機能や数字を作らない。「スマホから指示できる」「WordPressのREST API経由で入稿・リンク貼り替えができる」「調査や競合分析に使える」など、実際にできることの範囲で書く
 - 書き出しのバリエーション例: 自分の体験（「先月〜した」）、数字（「CTRが〜%」）、逆説（「〜しない方がいい」）、素朴な疑問（「〜ってどうなの？」）、断言（「〜は効く」）"""
 
     message = client.messages.create(
