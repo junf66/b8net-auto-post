@@ -3,6 +3,7 @@ import json
 import random
 import re
 import time
+import html
 import requests
 import anthropic
 import feedparser
@@ -19,6 +20,7 @@ X_API_HEADERS = {
 }
 POSTED_LOG = "posted_urls.json"
 TWEET_LOG = "posted_tweets.json"
+SAMPLES_LOG = "style_samples.json"  # 文体サンプルの倉庫（週1で手書きツイートを追記）
 
 STYLE_SAMPLES = [
     "AIが得意な「情報整理」と人間が得意な「意図理解」、これを組み合わせるのが最強。AIで下書き100記事作るより、検索意図を徹底分析した10記事の方が確実に稼げますね。",
@@ -350,36 +352,89 @@ def fetch_article_body(url):
 
 
 # ── 過去ツイート取得 ──────────────────────────────────────
-def fetch_past_tweets():
-    res = x_api_request(
-        "GET",
-        f"https://api.twitter.com/2/users/by/username/{X_USERNAME}",
-    )
-    if res.status_code != 200:
-        print(f"ユーザーID取得失敗: {res.status_code}")
-        return []
-    user_id = res.json().get("data", {}).get("id")
-    if not user_id:
-        print("ユーザーIDが取得できませんでした")
-        return []
+def load_samples_store():
+    if os.path.exists(SAMPLES_LOG):
+        try:
+            with open(SAMPLES_LOG, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"user_id": None, "since_id": None,
+            "samples": [{"text": t, "source": "archive"} for t in STYLE_SAMPLES]}
 
-    response = x_api_request(
-        "GET",
-        f"https://api.twitter.com/2/users/{user_id}/tweets",
-        params={"max_results": 10, "tweet.fields": "text"},
-    )
-    if response.status_code == 200:
-        data = response.json().get("data", [])
-        return [t["text"] for t in data]
-    print(f"過去ツイート取得失敗: {response.status_code} {response.text[:200]}")
-    return []
+
+def save_samples_store(store):
+    with open(SAMPLES_LOG, "w") as f:
+        json.dump(store, f, ensure_ascii=False, indent=2)
+
+
+def load_style_samples():
+    """毎日の投稿で使う文体サンプル。X API は叩かず倉庫から読むだけ"""
+    texts = [e["text"] for e in load_samples_store().get("samples", [])]
+    return texts or list(STYLE_SAMPLES)
+
+
+def _norm(text):
+    return re.sub(r"\s+", "", html.unescape(text))
+
+
+def update_style_samples():
+    """週1回: @b8_net の新しい手書きツイートを倉庫に追記する。
+    Bot の自動投稿を混ぜると AI が AI の文を真似る循環になるので除外する"""
+    store = load_samples_store()
+
+    if not store.get("user_id"):
+        res = x_api_request("GET", f"https://api.twitter.com/2/users/by/username/{X_USERNAME}")
+        if res.status_code != 200:
+            raise Exception(f"ユーザーID取得失敗: {res.status_code} {res.text[:200]}")
+        store["user_id"] = res.json()["data"]["id"]
+
+    params = {"max_results": 100, "exclude": "retweets,replies", "tweet.fields": "entities"}
+    first_run = not store.get("since_id")
+    if not first_run:
+        params["since_id"] = store["since_id"]
+
+    res = x_api_request("GET", f"https://api.twitter.com/2/users/{store['user_id']}/tweets", params=params)
+    if res.status_code != 200:
+        raise Exception(f"ツイート取得失敗: {res.status_code} {res.text[:200]}")
+    body = res.json()
+    newest = body.get("meta", {}).get("newest_id")
+
+    if first_run:
+        # 初回は基準点だけ記録する。過去分には Bot の投稿が記録 (直近50件) より前から混ざっており、
+        # 手書きか Bot か判別できないため取り込まない。手書き分は STYLE_SAMPLES に収録済み
+        if newest:
+            store["since_id"] = newest
+        save_samples_store(store)
+        print(f"初回: 基準点のみ記録 (since_id={newest})。次回から新規分を取り込みます")
+        return
+
+    bot_texts = [_norm(e["text"]) for e in load_tweet_history()]
+    existing = {_norm(e["text"]) for e in store["samples"]}
+    added = 0
+    for t in reversed(body.get("data", [])):  # 古い順に追記
+        text = t["text"].strip()
+        n = _norm(text)
+        if (len(text) < 20 or text.startswith("@") or "詳しくは" in text
+                or "http" in text or t.get("entities", {}).get("urls")):
+            continue
+        if n in existing or any(n[:30] == b[:30] for b in bot_texts):
+            continue
+        store["samples"].append({"text": text, "id": t["id"], "source": "x"})
+        existing.add(n)
+        added += 1
+    if newest:
+        store["since_id"] = newest
+    save_samples_store(store)
+    print(f"倉庫に追記: {added}件 (合計 {len(store['samples'])}件)")
 
 
 # ── ツイート生成 ──────────────────────────────────────────
 def generate_note_tweet(article, body, past_tweets):
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    samples = past_tweets[:5] if past_tweets else random.sample(STYLE_SAMPLES, 5)
+    pool = past_tweets or STYLE_SAMPLES
+    samples = random.sample(pool, min(5, len(pool)))
     examples = "\n".join(f"- {t}" for t in samples)
     style_examples = f"\n\n【文体・言い回しの参考（過去のX投稿）】\n{examples}"
 
@@ -493,8 +548,12 @@ if __name__ == "__main__":
     post_type = os.environ.get("POST_TYPE", "note")
     print(f"投稿タイプ: {post_type}")
 
-    past_tweets = fetch_past_tweets()
-    print(f"過去ツイート取得数: {len(past_tweets)}")
+    if post_type == "samples":
+        update_style_samples()
+        raise SystemExit(0)
+
+    past_tweets = load_style_samples()
+    print(f"文体サンプル（倉庫）: {len(past_tweets)}件")
 
     tweet_history = load_tweet_history()
 

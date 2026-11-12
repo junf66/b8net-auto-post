@@ -13,10 +13,11 @@ on:
     - cron: '30 10 * * 3,6'   # 19:30 JST (note 候補 1・水土)
     - cron: '30 11 * * 3,6'   # 20:30 JST (note 候補 2)
     - cron: '30 12 * * 3,6'   # 21:30 JST (note 候補 3)
+    - cron: '0 0 * * 0'       # 日曜 09:00 JST 文体サンプル倉庫の更新（週1・投稿はしない）
   workflow_dispatch:
     inputs:
       post_type:
-        description: 'Post type (note / seo)'
+        description: 'Post type (note / seo / samples)'
         required: false
         default: 'note'
 
@@ -38,6 +39,7 @@ jobs:
             "30 10 * * 3,6")  TYPE=note; SLOT=0 ;;
             "30 11 * * 3,6")  TYPE=note; SLOT=1 ;;
             "30 12 * * 3,6")  TYPE=note; SLOT=2 ;;
+            "0 0 * * 0")      TYPE=samples; SLOT=-1 ;;
             *)                  TYPE="${{ github.event.inputs.post_type }}"; SLOT=-1 ;;
           esac
           if [ "$SLOT" -ge 0 ]; then
@@ -85,7 +87,7 @@ jobs:
         run: |
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add -f posted_urls.json posted_tweets.json 2>/dev/null || true
+          git add -f posted_urls.json posted_tweets.json style_samples.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No changes"
             exit 0
